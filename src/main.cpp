@@ -17,6 +17,7 @@ namespace fs = std::filesystem;
 
 void processFile(const fs::path &filePath, const fs::path &outputFolder)
 {
+
     if (fs::exists(filePath) == false)
     {
         std::cerr << BOLDRED << "[Error] " << RESET << "file '" << filePath.u8string() << "' does not exist." << std::endl;

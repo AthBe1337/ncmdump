@@ -6,7 +6,8 @@ namespace fs = std::filesystem;
 extern "C" {
     API NeteaseCrypt* CreateNeteaseCrypt(const char* path) {
         fs::path fPath = fs::u8path(path);
-        return new NeteaseCrypt(fPath.u8string());
+        //return new NeteaseCrypt(fPath.u8string());
+        return new NeteaseCrypt(fPath);
     }
 
     API int Dump(NeteaseCrypt* neteaseCrypt, const char* outputPath) {

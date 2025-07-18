@@ -5,13 +5,14 @@
 #include "color.h"
 
 #define TAGLIB_STATIC
+
+
 #include "taglib/toolkit/tfile.h"
 #include "taglib/mpeg/mpegfile.h"
 #include "taglib/flac/flacfile.h"
 #include "taglib/mpeg/id3v2/frames/attachedpictureframe.h"
 #include "taglib/mpeg/id3v2/id3v2tag.h"
 #include "taglib/tag.h"
-
 #include <stdexcept>
 #include <string>
 #include <filesystem>
@@ -171,7 +172,7 @@ int NeteaseCrypt::read(char *s, std::streamsize n)
 
     if (gcount <= 0)
     {
-        throw std::invalid_argument("Can't read file");
+        throw std::runtime_error("Can't read file");
     }
 
     return gcount;
@@ -325,17 +326,17 @@ NeteaseCrypt::NeteaseCrypt(std::string const &path)
 {
     if (!openFile(path))
     {
-        throw std::invalid_argument("Can't open file");
+        throw std::runtime_error("Can't open file");
     }
 
     if (!isNcmFile())
     {
-        throw std::invalid_argument("Not netease protected file");
+        throw std::runtime_error("Not netease protected file");
     }
 
     if (!mFile.seekg(2, mFile.cur))
     {
-        throw std::invalid_argument("Can't seek file");
+        throw std::runtime_error("Can't seek file");
     }
 
     mFilepath = path;
@@ -345,7 +346,7 @@ NeteaseCrypt::NeteaseCrypt(std::string const &path)
 
     if (n <= 0)
     {
-        throw std::invalid_argument("Broken NCM file");
+        throw std::runtime_error("Broken NCM file");
     }
 
     std::vector<char> keydata(n);
@@ -403,7 +404,7 @@ NeteaseCrypt::NeteaseCrypt(std::string const &path)
     // skip crc32 & image version
     if (!mFile.seekg(5, mFile.cur))
     {
-        throw std::invalid_argument("can't seek file");
+        throw std::runtime_error("can't seek file");
     }
 
     uint32_t cover_frame_len{0};
