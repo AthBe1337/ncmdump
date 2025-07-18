@@ -19,7 +19,6 @@ FILE(GLOB LIBRARY_SOURCES src/lib/*.cpp)
 # Emscripten 绑定接口的源文件
 set(WASM_INTERFACE_SOURCE src/wasm_interface.cpp)
 
-# =================== WebAssembly 构建配置 ===================
 if(EMSCRIPTEN)
   message(STATUS "Configuring WebAssembly build with Emscripten")
 
@@ -61,7 +60,7 @@ if(EMSCRIPTEN)
           -sENVIRONMENT=web
           -sALLOW_MEMORY_GROWTH=1
           -sEXIT_RUNTIME=0
-          -sASSERTIONS=1             # 调试时非常有用，会提供更多错误信息
+          -sASSERTIONS=1
           -sFORCE_FILESYSTEM=1
           -sEXPORTED_RUNTIME_METHODS=FS # 确保 FS 被导出
           -sNO_DISABLE_EXCEPTION_CATCHING
