@@ -810,12 +810,12 @@
 <script src="https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/jsmediatags/3.9.5/jsmediatags.js" integrity="sha512-fCU+rmH3nS/RJaTSl/ylo/PxwWIZwJts3rfxRylSPqGYMJGPLXvPJGOTF+ECb0K5m9rSXbkCNg2PR7WKGWRTVQ==" crossorigin="anonymous" referrerpolicy="no-referrer"></script>
 <script type="module">
-  // WASM 模块实例
-  let wasmModule = null;
   // 待转换的文件列表
   const pendingFiles = [];
   // 已转换成功的文件及其数据 (Blob URLs)
   const convertedFilesData = [];
+  // 解密worker
+  let decryptWorker = null;
 
   // --- 辅助函数 ---
   function updateStatus(text, type = "info") {
@@ -911,7 +911,7 @@
 
   // --- 转换文件逻辑 ---
   async function processAllFiles() {
-    if (!wasmModule) {
+    if (!decryptWorker) {
       updateStatus("解密模块尚未加载完成，请稍候...", "error");
       return;
     }
@@ -920,28 +920,38 @@
       return;
     }
 
-    // Disable buttons during conversion
+    // 禁用转换过程中的按钮
     document.getElementById('convertBtn').disabled = true;
     document.getElementById('selectBtn').disabled = true;
     document.getElementById('uploadArea').style.cursor = 'not-allowed';
 
-    convertedFilesData.length = 0; // Clear previous converted data
+    convertedFilesData.length = 0;  // 清空之前的数据
     document.getElementById('convertedFileList').innerHTML = '';
     document.getElementById('convertedFilesContainer').classList.add('show');
     document.getElementById('downloadAllBtn').classList.add('hidden');
 
+    // 创建解密请求的 Promise 映射
+    const decryptPromises = {};
 
-    try {
-      wasmModule.FS.mkdir('/work');
-      console.log("VFS /work directory created.");
-    } catch (e) {
-      if (e.code !== 'EEXIST') { // 忽略目录已存在的错误
-        console.error("创建 VFS /work 目录失败:", e);
-        updateStatus(`VFS 初始化失败: ${e.message}`, "error");
-        return;
+    // 设置 Worker 消息处理器
+    decryptWorker.onmessage = async (e) => {
+      const data = e.data;
+
+      if (data.type === 'decrypted') {
+        const { index, result } = data;
+
+        if (decryptPromises[index]) {
+          decryptPromises[index].resolve(new Uint8Array(result));
+        }
       }
-      console.warn("VFS /work 目录已存在。");
-    }
+      else if (data.type === 'error') {
+        const { index, error } = data;
+
+        if (decryptPromises[index]) {
+          decryptPromises[index].reject(new Error(error));
+        }
+      }
+    };
 
     for (let i = 0; i < pendingFiles.length; i++) {
       const file = pendingFiles[i];
@@ -955,8 +965,34 @@
         const fileNameParts = file.name.split('.');
         const baseNameWithoutExtension = fileNameParts.slice(0, -1).join('.');
 
-        const decryptedUint8Array = new Uint8Array(wasmModule.decryptNCM(fileData, baseNameWithoutExtension)); // new Uint8Array 创建独立拷贝，避免被后续文件覆盖
+        // 创建Promise
+        const decryptPromise = new Promise((resolve, reject) => {
+          const handler = (e) => {
+            const { type, payload } = e.data;
+            if (payload.index !== i) return;
 
+            if (type === 'decrypted') {
+              decryptWorker.removeEventListener('message', handler);
+              resolve(new Uint8Array(payload.result));
+            } else if (type === 'error') {
+              decryptWorker.removeEventListener('message', handler);
+              reject(new Error(payload.error));
+            }
+          };
+          decryptWorker.addEventListener('message', handler);
+        });
+
+        // 发送解密请求
+        decryptWorker.postMessage({
+          type: 'decrypt',
+          payload: {
+            fileData: fileData.buffer,
+            baseNameWithoutExtension: baseNameWithoutExtension,
+            index: i
+          }
+        }, [fileData.buffer]);
+
+        const decryptedUint8Array = await decryptPromise;
         updateProgress(50);
 
         // --- 使用 jsmediatags 解析元数据 ---
@@ -1044,7 +1080,11 @@
         updateStatus(`转换 ${file.name} 失败: ${err.message || err}`, "error");
         updateProgress(100);
       }
-      // Small delay for UI updates
+
+      // 清理 Promise 引用
+      delete decryptPromises[i];
+
+      // 小延迟让 UI 更新
       await new Promise(resolve => setTimeout(resolve, 50));
     }
 
@@ -1231,30 +1271,20 @@
     downloadAllBtn.addEventListener('click', downloadAllFiles);
 
     updateStatus("正在加载解密模块...", "info");
-    import('./wasm/ncmdump.js')
-            .then(({ default: createModule }) => {
-              return createModule({
-                locateFile: (path) => {
-                  if (path.endsWith('.wasm')) {
-                    return './wasm/ncmdump.wasm';
-                  }
-                  return path;
-                },
-                onRuntimeInitialized: () => {
-                  console.log("WASM runtime initialized.");
-                  updateStatus("解密模块运行时已准备", "info");
-                }
-              });
-            })
-            .then(moduleInstance => {
-              wasmModule = moduleInstance;
-              updateStatus("解密模块加载完成", "success");
-              renderPendingFileList();
-            })
-            .catch(err => {
-              console.error('WASM 模块加载失败:', err);
-              updateStatus(`解密模块加载失败: ${err.message}`, "error");
-            });
+    // 创建 Web Worker 替代 WASM 加载
+    decryptWorker = new Worker('decrypt.worker.js', { type: 'module' });
+
+    decryptWorker.onmessage = (e) => {
+      if (e.data.type === 'wasm-ready') {
+        updateStatus("解密模块加载完成", "success");
+        renderPendingFileList();
+      }
+    };
+
+    decryptWorker.onerror = (e) => {
+      console.error('Worker error:', e);
+      updateStatus(`Worker 加载失败: ${e.message}`, "error");
+    };
   });
 </script>
 

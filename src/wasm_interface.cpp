@@ -18,19 +18,12 @@ std::string toLower(std::string s) {
     return s;
 }
 
-// 解密 NCM 文件的 C++ 函数
-// outputBaseNameFromJS 参数现在主要用于 JS 端生成最终下载文件名，
-// 在 C++ 端不再用于查找 VFS 文件。
+
 val decryptNCM(const val &inputData, const std::string &outputBaseNameFromJS) {
     std::vector<uint8_t> data = vecFromJSArray<uint8_t>(inputData);
 
     const std::string inputPath = "/work/input.ncm";
     const std::string workDir = "/work/";
-
-    // 检查目录是否存在
-    if (!std::filesystem::exists(workDir)) {
-        std::filesystem::create_directory(workDir);
-    }
 
     FILE* inFile = fopen(inputPath.c_str(), "wb");
     if (!inFile) {
