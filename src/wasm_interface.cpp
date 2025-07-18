@@ -27,6 +27,11 @@ val decryptNCM(const val &inputData, const std::string &outputBaseNameFromJS) {
     const std::string inputPath = "/work/input.ncm";
     const std::string workDir = "/work/";
 
+    // 检查目录是否存在
+    if (!std::filesystem::exists(workDir)) {
+        std::filesystem::create_directory(workDir);
+    }
+
     FILE* inFile = fopen(inputPath.c_str(), "wb");
     if (!inFile) {
         throw std::runtime_error("Failed to open input file in VFS for writing: " + inputPath);
@@ -75,7 +80,7 @@ val decryptNCM(const val &inputData, const std::string &outputBaseNameFromJS) {
         }
 
         EM_ASM_({
-            console.log('C++ Decryption successful, actual output file: ' + UTF8ToString($0));
+            console.log('C++ Decryption successful');
         }, actualOutputFilePath.c_str());
 
         return val(typed_memory_view(result.size(), result.data()));

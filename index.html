@@ -1,0 +1,1279 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>NCM 解密工具</title>
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+  <style>
+    :root {
+      --primary: #4361ee;
+      --primary-dark: #3a56d4;
+      --secondary: #7209b7;
+      --success: #06d6a0;
+      --danger: #ef476f;
+      --warning: #ffd166;
+      --info: #118ab2;
+      --light: #f8f9fa;
+      --dark: #212529;
+      --gray: #6c757d;
+      --light-gray: #e9ecef;
+      --border-radius: 12px;
+      --box-shadow: 0 8px 25px rgba(0, 0, 0, 0.1);
+      --transition: all 0.3s ease;
+    }
+
+    * {
+      margin: 0;
+      padding: 0;
+      box-sizing: border-box;
+    }
+
+    body {
+      font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      min-height: 100vh;
+      background: linear-gradient(135deg, #f5f7fa 0%, #e4edf5 100%);
+      color: var(--dark);
+      margin: 0;
+      padding: 20px;
+      box-sizing: border-box;
+    }
+
+    .container {
+      background-color: #ffffff;
+      padding: 30px 40px;
+      border-radius: var(--border-radius);
+      box-shadow: var(--box-shadow);
+      text-align: center;
+      width: 100%;
+      max-width: 800px;
+      box-sizing: border-box;
+      margin-bottom: 20px;
+      position: relative;
+      overflow: hidden;
+    }
+
+    .container::before {
+      content: '';
+      position: absolute;
+      top: 0;
+      left: 0;
+      right: 0;
+      height: 5px;
+      background: linear-gradient(90deg, var(--primary), var(--secondary));
+    }
+
+    h1 {
+      color: var(--primary);
+      margin-bottom: 15px;
+      font-size: 2.2em;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      gap: 12px;
+    }
+
+    /* 应用信息容器 */
+    .app-info-container {
+      width: 100%;
+      border: 1px solid var(--light-gray);
+      border-radius: var(--border-radius);
+      margin-bottom: 25px;
+      overflow: hidden;
+    }
+
+    .app-info-header {
+      background-color: var(--light);
+      padding: 12px 15px;
+      cursor: pointer;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      font-weight: 600;
+      color: var(--info);
+    }
+
+    .app-info-header .toggle-icon {
+      transition: transform 0.3s ease;
+    }
+
+    .app-info-header.collapsed .toggle-icon {
+      transform: rotate(-90deg);
+    }
+
+    .app-info-content {
+      padding: 15px;
+      background-color: white;
+      border-top: 1px solid var(--light-gray);
+      display: block;
+      text-align: left;
+      font-size: 0.95em;
+      line-height: 1.6;
+    }
+
+    .app-info-container.collapsed .app-info-content {
+      display: none;
+    }
+
+    .app-info-content p {
+      margin-bottom: 10px;
+    }
+
+    .status {
+      padding: 12px 20px;
+      border-radius: 8px;
+      margin: 20px 0;
+      font-weight: 600;
+      font-size: 0.95em;
+      display: flex;
+      align-items: center;
+      gap: 10px;
+    }
+
+    .status.info {
+      background-color: rgba(17, 138, 178, 0.1);
+      color: var(--info);
+      border-left: 4px solid var(--info);
+    }
+    .status.success {
+      background-color: rgba(6, 214, 160, 0.1);
+      color: var(--success);
+      border-left: 4px solid var(--success);
+    }
+    .status.error {
+      background-color: rgba(239, 71, 111, 0.1);
+      color: var(--danger);
+      border-left: 4px solid var(--danger);
+    }
+
+    .main-content {
+      position: relative;
+      width: 100%;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+    }
+
+    .upload-area {
+      border: 3px dashed #b8d6ff;
+      border-radius: 10px;
+      padding: 40px 30px;
+      margin-top: 25px;
+      cursor: pointer;
+      transition: var(--transition);
+      color: var(--gray);
+      font-size: 1.1em;
+      width: 100%;
+      box-sizing: border-box;
+      background-color: #f8fbff;
+      position: relative;
+    }
+
+    .upload-area:hover, .upload-area.active {
+      background-color: #eaf8ff;
+      border-color: var(--primary);
+      transform: translateY(-3px);
+    }
+
+    .upload-area .icon {
+      font-size: 3.5rem;
+      margin-bottom: 15px;
+      color: #b8d6ff;
+      transition: var(--transition);
+    }
+
+    .upload-area:hover .icon {
+      color: var(--primary);
+    }
+
+    .upload-area p {
+      margin: 0;
+      padding: 5px 0;
+    }
+
+    .upload-area button {
+      background: linear-gradient(to right, var(--primary), var(--secondary));
+      color: white;
+      border: none;
+      padding: 12px 30px;
+      border-radius: 8px;
+      cursor: pointer;
+      font-size: 1.05em;
+      transition: var(--transition);
+      margin-top: 20px;
+      font-weight: 600;
+      box-shadow: 0 4px 15px rgba(67, 97, 238, 0.3);
+    }
+
+    .upload-area button:hover {
+      background: linear-gradient(to right, var(--primary-dark), #65199e);
+      box-shadow: 0 6px 20px rgba(67, 97, 238, 0.4);
+      transform: translateY(-2px);
+    }
+
+    /* 按钮容器样式 */
+    .file-list-actions {
+      display: flex;
+      gap: 10px;
+      margin-left: auto;
+    }
+
+    /* 列表操作按钮样式 */
+    .list-action-btn {
+      background: transparent;
+      border: none;
+      color: var(--primary);
+      cursor: pointer;
+      font-size: 0.6em;
+      padding: 5px 10px;
+      transition: var(--transition);
+      display: flex;
+      align-items: center;
+      gap: 5px;
+    }
+
+    .list-action-btn:hover {
+      color: var(--primary-dark);
+      text-decoration: underline;
+    }
+
+    .list-action-btn i {
+      font-size: 0.9em;
+    }
+
+    /* 模态框基础样式 */
+    .modal {
+      position: fixed;
+      top: 0;
+      left: 0;
+      right: 0;
+      bottom: 0;
+      background: rgba(0, 0, 0, 0.5);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      z-index: 1000;
+      opacity: 0;
+      visibility: hidden;
+      transition: all 0.3s ease;
+    }
+
+    .modal.show {
+      opacity: 1;
+      visibility: visible;
+    }
+
+    .modal-dialog {
+      width: 100%;
+      max-width: 400px;
+      background: white;
+      border-radius: 8px;
+      box-shadow: 0 10px 30px rgba(0, 0, 0, 0.2);
+      transform: translateY(-20px);
+      transition: transform 0.3s ease;
+    }
+
+    .modal.show .modal-dialog {
+      transform: translateY(0);
+    }
+
+    /* 模态框头部 */
+    .modal-header {
+      padding: 16px 24px;
+      border-bottom: 1px solid #eee;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+    }
+
+    .modal-header h3 {
+      margin: 0;
+      font-size: 1.25rem;
+      color: #333;
+    }
+
+    .modal-close {
+      background: none;
+      border: none;
+      font-size: 1.5rem;
+      cursor: pointer;
+      color: #999;
+      line-height: 1;
+    }
+
+    /* 模态框内容 */
+    .modal-body {
+      padding: 24px;
+      color: #555;
+      line-height: 1.5;
+    }
+
+    /* 模态框底部 */
+    .modal-footer {
+      padding: 16px 24px;
+      border-top: 1px solid #eee;
+      display: flex;
+      justify-content: flex-end;
+      gap: 12px;
+    }
+
+    /* 按钮样式 */
+    .btn {
+      padding: 8px 16px;
+      border-radius: 4px;
+      cursor: pointer;
+      font-size: 0.9rem;
+      transition: all 0.2s;
+    }
+
+    .btn-primary {
+      background-color: #1890ff;
+      color: white;
+      border: 1px solid #1890ff;
+    }
+
+    .btn-primary:hover {
+      background-color: #40a9ff;
+      border-color: #40a9ff;
+    }
+
+    .btn-secondary {
+      background-color: white;
+      color: #555;
+      border: 1px solid #d9d9d9;
+    }
+
+    .btn-secondary:hover {
+      color: #1890ff;
+      border-color: #1890ff;
+    }
+
+    .progress-container {
+      width: 100%;
+      background-color: #e0e0e0;
+      border-radius: 8px;
+      overflow: hidden;
+      margin-top: 25px;
+      height: 20px;
+      display: none;
+    }
+
+    .progress-bar {
+      height: 100%;
+      width: 0%;
+      background: linear-gradient(to right, var(--primary), var(--secondary));
+      border-radius: 8px;
+      text-align: center;
+      color: white;
+      transition: width 0.3s ease;
+      font-size: 0.8em;
+      line-height: 20px;
+      position: relative;
+      overflow: hidden;
+    }
+
+    .progress-bar::after {
+      content: '';
+      position: absolute;
+      top: 0;
+      left: 0;
+      right: 0;
+      bottom: 0;
+      background-image: linear-gradient(
+              -45deg,
+              rgba(255, 255, 255, 0.2) 25%,
+              transparent 25%,
+              transparent 50%,
+              rgba(255, 255, 255, 0.2) 50%,
+              rgba(255, 255, 255, 0.2) 75%,
+              transparent 75%,
+              transparent
+      );
+      background-size: 50px 50px;
+      animation: move 2s linear infinite;
+      overflow: hidden;
+    }
+
+    @keyframes move {
+      0% { background-position: 0 0; }
+      100% { background-position: 50px 50px; }
+    }
+
+    /* 修复文件列表显示问题 */
+    #fileListContainer {
+      margin-top: 30px;
+      width: 100%;
+      text-align: left;
+      background-color: #ffffff;
+      border-radius: var(--border-radius);
+      box-shadow: var(--box-shadow);
+      padding: 25px;
+      box-sizing: border-box;
+      display: none;
+      border-top: 3px solid var(--primary);
+    }
+
+    #fileListContainer.show {
+      display: block;
+      animation: fadeIn 0.5s ease;
+    }
+
+    @keyframes fadeIn {
+      from { opacity: 0; transform: translateY(10px); }
+      to { opacity: 1; transform: translateY(0); }
+    }
+
+    #fileListContainer h2 {
+      color: var(--primary);
+      font-size: 1.5em;
+      margin-bottom: 20px;
+      display: flex;
+      align-items: center;
+      gap: 10px;
+    }
+
+    #pendingFileList {
+      list-style: none;
+      padding: 0;
+      max-height: 300px;
+      overflow-y: auto;
+      border: 1px solid var(--light-gray);
+      border-radius: 8px;
+      background-color: #fbfdff;
+    }
+
+    #pendingFileList li {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      padding: 12px 15px;
+      border-bottom: 1px solid #eee;
+      font-size: 0.95em;
+      color: var(--dark);
+      transition: var(--transition);
+    }
+
+    #pendingFileList li:hover {
+      background-color: rgba(67, 97, 238, 0.05);
+    }
+
+    #pendingFileList li:last-child {
+      border-bottom: none;
+    }
+
+    #pendingFileList li .file-info {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      flex-grow: 1;
+    }
+
+    #pendingFileList li .file-info i {
+      color: var(--primary);
+    }
+
+    #pendingFileList li .file-name {
+      flex-grow: 1;
+      word-break: break-all;
+    }
+
+    /* 修改删除按钮样式 */
+    #pendingFileList li .remove-btn {
+      background-color: transparent;
+      color: var(--danger);
+      border: none;
+      border-radius: 5px;
+      padding: 5px;
+      cursor: pointer;
+      font-size: 0.85em;
+      transition: var(--transition);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      width: 30px;
+      height: 30px;
+      position: relative;
+    }
+
+    #pendingFileList li .remove-btn:hover {
+      background-color: var(--danger);
+      color: white;
+      width: auto;
+      padding: 5px 10px;
+    }
+
+    .remove-btn .delete-text {
+      display: none;
+      margin-left: 5px;
+    }
+
+    .remove-btn:hover .delete-text {
+      display: inline;
+    }
+
+    #convertBtn {
+      background: linear-gradient(to right, var(--info), var(--primary));
+      color: white;
+      border: none;
+      padding: 12px 25px;
+      border-radius: 8px;
+      cursor: pointer;
+      font-size: 1.05em;
+      transition: var(--transition);
+      margin-top: 20px;
+      width: 100%;
+      box-sizing: border-box;
+      font-weight: 600;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      gap: 10px;
+      box-shadow: 0 4px 15px rgba(17, 138, 178, 0.3);
+    }
+
+    #convertBtn:hover {
+      background: linear-gradient(to right, #0f7ca1, var(--primary-dark));
+      box-shadow: 0 6px 20px rgba(17, 138, 178, 0.4);
+      transform: translateY(-2px);
+    }
+
+    #convertBtn:disabled {
+      background: #b0bec5;
+      cursor: not-allowed;
+      transform: none;
+      box-shadow: none;
+    }
+
+    /* Converted Files List Styles */
+    #convertedFilesContainer {
+      margin-top: 40px;
+      width: 100%;
+      text-align: left;
+      display: none;
+      border-top: 3px solid var(--success);
+    }
+
+    #convertedFilesContainer.show {
+      display: block;
+      animation: fadeIn 0.5s ease;
+    }
+
+    #convertedFilesContainer h2 {
+      color: var(--success);
+      font-size: 1.5em;
+      margin-bottom: 20px;
+      display: flex;
+      align-items: center;
+      gap: 10px;
+    }
+
+    #convertedFileList {
+      list-style: none;
+      padding: 0;
+      max-height: 400px;
+      overflow-y: auto;
+      border: 1px solid var(--light-gray);
+      border-radius: 8px;
+      background-color: #fbfdff;
+    }
+
+    #convertedFileList li {
+      display: flex;
+      align-items: center;
+      padding: 15px;
+      border-bottom: 1px solid #eee;
+      font-size: 0.95em;
+      color: var(--dark);
+      transition: var(--transition);
+    }
+
+    #convertedFileList li:hover {
+      background-color: rgba(6, 214, 160, 0.05);
+    }
+
+    #convertedFileList li:last-child {
+      border-bottom: none;
+    }
+
+    .cover-image {
+      width: 70px;
+      height: 70px;
+      border-radius: 8px;
+      object-fit: cover;
+      margin-right: 15px;
+      flex-shrink: 0;
+      box-shadow: 0 3px 10px rgba(0, 0, 0, 0.1);
+    }
+
+    .file-details {
+      flex-grow: 1;
+      display: flex;
+      flex-direction: column;
+      text-align: left;
+    }
+
+    .file-details strong {
+      font-size: 1.1em;
+      color: var(--dark);
+      margin-bottom: 5px;
+    }
+
+    .file-details span {
+      color: var(--gray);
+      font-size: 0.9em;
+      display: flex;
+      align-items: center;
+      gap: 5px;
+      margin: 2px 0;
+    }
+
+    .file-download {
+      margin-left: auto;
+      flex-shrink: 0;
+      display: flex;
+      flex-direction: column;
+      align-items: flex-end;
+      gap: 10px;
+    }
+
+    .download-single-btn {
+      background: linear-gradient(to right, var(--success), #05b992);
+      color: white;
+      border: none;
+      border-radius: 6px;
+      padding: 8px 15px;
+      cursor: pointer;
+      font-size: 0.9em;
+      transition: var(--transition);
+      text-decoration: none;
+      display: flex;
+      align-items: center;
+      gap: 5px;
+      box-shadow: 0 3px 10px rgba(6, 214, 160, 0.3);
+    }
+
+    .download-single-btn:hover {
+      background: linear-gradient(to right, #05b992, #049e7e);
+      box-shadow: 0 5px 15px rgba(6, 214, 160, 0.4);
+      transform: translateY(-2px);
+    }
+
+    #downloadAllBtn {
+      background: linear-gradient(to right, var(--primary), var(--secondary));
+      color: white;
+      border: none;
+      padding: 12px 25px;
+      border-radius: 8px;
+      cursor: pointer;
+      font-size: 1.05em;
+      transition: var(--transition);
+      margin-top: 25px;
+      width: 100%;
+      box-sizing: border-box;
+      font-weight: 600;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      gap: 10px;
+      box-shadow: 0 4px 15px rgba(67, 97, 238, 0.3);
+    }
+
+    #downloadAllBtn:hover {
+      background: linear-gradient(to right, var(--primary-dark), #65199e);
+      box-shadow: 0 6px 20px rgba(67, 97, 238, 0.4);
+      transform: translateY(-2px);
+    }
+
+    #downloadAllBtn:disabled {
+      background: #b0bec5;
+      cursor: not-allowed;
+      transform: none;
+      box-shadow: none;
+    }
+
+    .hidden {
+      display: none !important;
+    }
+
+    /* 响应式设计 */
+    @media (max-width: 768px) {
+      .container {
+        padding: 20px;
+      }
+
+      h1 {
+        font-size: 1.8em;
+      }
+
+      .upload-area {
+        padding: 30px 20px;
+      }
+
+      #convertedFileList li {
+        flex-direction: column;
+        align-items: flex-start;
+        gap: 15px;
+      }
+
+      .file-download {
+        margin-left: 0;
+        width: 100%;
+        align-items: flex-start;
+      }
+
+      .cover-image {
+        margin-right: 0;
+        margin-bottom: 10px;
+      }
+    }
+
+    footer {
+      margin-top: 20px;
+      color: var(--gray);
+      font-size: 0.9em;
+      text-align: center;
+      padding: 15px;
+    }
+  </style>
+</head>
+<body>
+<div class="container">
+  <h1><i class="fas fa-lock-open"></i> NCM 解密工具</h1>
+
+  <!-- 新增的应用信息容器 -->
+  <div class="app-info-container">
+    <div class="app-info-header">
+      <div>
+        <i class="fas fa-info-circle"></i> 应用说明
+      </div>
+      <i class="fas fa-chevron-down toggle-icon"></i>
+    </div>
+    <div class="app-info-content">
+      <p>这是一个用于解密网易云音乐NCM格式文件的工具，使用WebAssembly技术，转换过程在浏览器中完成，安全可靠。</p>
+      <p>使用方法：拖放.ncm文件到上方区域，或点击"选择文件"按钮，然后点击"开始转换"按钮。</p>
+      <p>转换完成后，可以单独下载每个文件或打包下载所有文件。</p>
+      <p><strong>提示：</strong> 您可以多次添加文件，所有文件将一起转换。</p>
+    </div>
+  </div>
+
+  <div id="statusText" class="status info">
+    <i class="fas fa-sync fa-spin"></i> 正在加载解密模块...
+  </div>
+
+  <div class="progress-container" id="progressContainer">
+    <div class="progress-bar" id="progressBar"></div>
+  </div>
+
+  <div class="main-content">
+    <div class="upload-area" id="uploadArea">
+      <input type="file" id="fileInput" multiple accept=".ncm" style="display: none;">
+      <div class="icon">
+        <i class="fas fa-cloud-upload-alt"></i>
+      </div>
+      <p>拖放 .ncm 文件到这里</p>
+      <p>或</p>
+      <button id="selectBtn"><i class="fas fa-folder-open"></i> 选择文件</button>
+    </div>
+
+    <div id="fileListContainer">
+      <h2>
+        <i class="fas fa-list"></i> 待转换文件列表
+        <div class="file-list-actions">
+          <button id="addMoreBtn" class="list-action-btn">
+            <i class="fas fa-plus"></i> 继续添加
+          </button>
+          <button id="clearListBtn" class="list-action-btn">
+            <i class="fas fa-trash-alt"></i> 清空列表
+          </button>
+        </div>
+      </h2>
+      <ul id="pendingFileList"></ul>
+      <button id="convertBtn"><i class="fas fa-cog"></i> 开始转换</button>
+    </div>
+  </div>
+</div>
+
+<div class="container" id="convertedFilesContainer">
+  <h2><i class="fas fa-check-circle"></i> 已转换文件</h2>
+  <ul id="convertedFileList"></ul>
+  <button id="downloadAllBtn" class="hidden"><i class="fas fa-download"></i> 一键下载所有文件</button>
+</div>
+
+<footer>
+  <p>NCM解密工具 v1.3 &copy; 2023 | 安全便捷的网易云音乐格式转换</p>
+</footer>
+
+<script src="https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/jsmediatags/3.9.5/jsmediatags.js" integrity="sha512-fCU+rmH3nS/RJaTSl/ylo/PxwWIZwJts3rfxRylSPqGYMJGPLXvPJGOTF+ECb0K5m9rSXbkCNg2PR7WKGWRTVQ==" crossorigin="anonymous" referrerpolicy="no-referrer"></script>
+<script type="module">
+  // WASM 模块实例
+  let wasmModule = null;
+  // 待转换的文件列表
+  const pendingFiles = [];
+  // 已转换成功的文件及其数据 (Blob URLs)
+  const convertedFilesData = [];
+
+  // --- 辅助函数 ---
+  function updateStatus(text, type = "info") {
+    const statusElement = document.getElementById('statusText');
+    statusElement.innerHTML = `<i class="fas fa-${type === 'info' ? 'info-circle' : type === 'success' ? 'check-circle' : 'exclamation-circle'}"></i> ${text}`;
+    statusElement.className = "status " + type;
+  }
+
+  function updateProgress(percent) {
+    const progressBar = document.getElementById('progressBar');
+    progressBar.style.width = percent + '%';
+    progressBar.textContent = percent > 10 ? `${percent}%` : '';
+    document.getElementById('progressContainer').style.display = 'block';
+  }
+
+  function readFileAsUint8Array(file) {
+    return new Promise((resolve, reject) => {
+      const reader = new FileReader();
+      reader.onload = (e) => {
+        resolve(new Uint8Array(e.target.result));
+      };
+      reader.onerror = (e) => {
+        reject(new Error("文件读取失败"));
+      };
+      reader.readAsArrayBuffer(file);
+    });
+  }
+
+  function formatTime(seconds) {
+    if (isNaN(seconds) || seconds < 0) return "0:00";
+    const minutes = Math.floor(seconds / 60);
+    const remainingSeconds = Math.floor(seconds % 60);
+    return `${minutes}:${remainingSeconds < 10 ? '0' : ''}${remainingSeconds}`;
+  }
+
+  // --- 文件列表管理 ---
+  function renderPendingFileList() {
+    const listElement = document.getElementById('pendingFileList');
+    const fileListContainer = document.getElementById('fileListContainer');
+    const uploadArea = document.getElementById('uploadArea');
+
+    listElement.innerHTML = '';
+    if (pendingFiles.length > 0) {
+      fileListContainer.classList.add('show');
+      uploadArea.classList.add('hidden');
+      document.getElementById('convertBtn').disabled = false;
+    } else {
+      fileListContainer.classList.remove('show');
+      uploadArea.classList.remove('hidden');
+      document.getElementById('convertBtn').disabled = true;
+    }
+
+    pendingFiles.forEach((file, index) => {
+      const li = document.createElement('li');
+      li.innerHTML = `
+                    <div class="file-info">
+                        <i class="fas fa-music"></i>
+                        <span class="file-name">${file.name}</span>
+                    </div>
+                    <button class="remove-btn" data-index="${index}">
+                        <i class="fas fa-trash"></i>
+                        <span class="delete-text">删除</span>
+                    </button>
+                `;
+      listElement.appendChild(li);
+    });
+
+    listElement.querySelectorAll('.remove-btn').forEach(button => {
+      button.addEventListener('click', (e) => {
+        const indexToRemove = parseInt(e.target.closest('.remove-btn').dataset.index);
+        pendingFiles.splice(indexToRemove, 1);
+        renderPendingFileList();
+      });
+    });
+  }
+
+  // Audio标签，用于获取时长
+  function getDurationViaAudioElement(buffer) {
+    return new Promise((resolve) => {
+      const blob = new Blob([buffer], { type: 'audio/*' });
+      const url = URL.createObjectURL(blob);
+      const audio = new Audio();
+
+      audio.onloadedmetadata = () => {
+        resolve(audio.duration);
+        URL.revokeObjectURL(url);
+      };
+      audio.onerror = () => resolve(0); // 失败回退
+
+      audio.src = url;
+    });
+  }
+
+  // --- 转换文件逻辑 ---
+  async function processAllFiles() {
+    if (!wasmModule) {
+      updateStatus("解密模块尚未加载完成，请稍候...", "error");
+      return;
+    }
+    if (pendingFiles.length === 0) {
+      updateStatus("没有待转换的文件。", "info");
+      return;
+    }
+
+    // Disable buttons during conversion
+    document.getElementById('convertBtn').disabled = true;
+    document.getElementById('selectBtn').disabled = true;
+    document.getElementById('uploadArea').style.cursor = 'not-allowed';
+
+    convertedFilesData.length = 0; // Clear previous converted data
+    document.getElementById('convertedFileList').innerHTML = '';
+    document.getElementById('convertedFilesContainer').classList.add('show');
+    document.getElementById('downloadAllBtn').classList.add('hidden');
+
+
+    try {
+      wasmModule.FS.mkdir('/work');
+      console.log("VFS /work directory created.");
+    } catch (e) {
+      if (e.code !== 'EEXIST') { // 忽略目录已存在的错误
+        console.error("创建 VFS /work 目录失败:", e);
+        updateStatus(`VFS 初始化失败: ${e.message}`, "error");
+        return;
+      }
+      console.warn("VFS /work 目录已存在。");
+    }
+
+    for (let i = 0; i < pendingFiles.length; i++) {
+      const file = pendingFiles[i];
+      updateStatus(`正在转换 ${file.name} (${i + 1}/${pendingFiles.length})...`, "info");
+      updateProgress(0);
+
+      try {
+        const fileData = await readFileAsUint8Array(file);
+        updateProgress(10);
+
+        const fileNameParts = file.name.split('.');
+        const baseNameWithoutExtension = fileNameParts.slice(0, -1).join('.');
+
+        const decryptedUint8Array = new Uint8Array(wasmModule.decryptNCM(fileData, baseNameWithoutExtension)); // new Uint8Array 创建独立拷贝，避免被后续文件覆盖
+
+        updateProgress(50);
+
+        // --- 使用 jsmediatags 解析元数据 ---
+        let title = baseNameWithoutExtension;
+        let album = "未知专辑";
+        let artist = "未知歌手";
+        let duration = 0; // in seconds
+        let coverBlobUrl = "data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAEAAAABAAQMAAACQp+lkAAAABlBMVEVHcEyhsbG3J2sIAAAAVklEQVRIx2NggAL/gAC/kAG+0A//0A+I/w/yT/kP/Y/6D/YP+g/7D/QP+w/7D/UP9Q/1D/UP9w/1D/UP9Q/1D/UP9Q/1D/UP9Q/1D/UM82yM82yMk4GAUAIoX54F4257AAAAAASUVORK5CYII="; // Default cover
+
+        try {
+          // 使用 jsmediatags 获取歌曲元数据
+          // 它似乎不支持ArrayBuffer，包装成Blob
+          const audioBlob = new Blob([decryptedUint8Array], { type: 'audio/*' });
+
+          const tags = await new Promise((resolve, reject) => {
+            jsmediatags.read(audioBlob, {
+              onSuccess: (tag) => resolve(tag),
+              onError: (error) => reject(error)
+            });
+          });
+
+          if (tags.tags) {
+            title = tags.tags.title || title;
+            artist = tags.tags.artist || "未知歌手";
+            album = tags.tags.album || "未知专辑";
+
+            if (tags.tags.picture && tags.tags.picture.data && tags.tags.picture.format) {
+              const pictureData = tags.tags.picture.data;
+              const pictureFormat = tags.tags.picture.format;
+              const blob = new Blob([new Uint8Array(pictureData)], { type: pictureFormat });
+              coverBlobUrl = URL.createObjectURL(blob);
+            }
+          }
+
+          duration = await getDurationViaAudioElement(audioBlob);
+        } catch (metadataErr) {
+          console.warn(`无法解析 ${file.name} 的元数据:`, metadataErr);
+          // Fallback to filename guess if metadata extraction fails
+          const parts = baseNameWithoutExtension.split(' - ');
+          if (parts.length >= 2) {
+            artist = parts[0];
+            title = parts.slice(1).join(' - ').trim() || title;
+          }
+        }
+
+        updateProgress(90);
+
+        // Determine final output extension (MP3/FLAC) for download name
+        let finalOutputExtension = ".mp3";
+        if (decryptedUint8Array.length >= 4) {
+          if (decryptedUint8Array[0] === 0x66 && decryptedUint8Array[1] === 0x4C && decryptedUint8Array[2] === 0x61 && decryptedUint8Array[3] === 0x43) {
+            finalOutputExtension = ".flac";
+          } else if (decryptedUint8Array[0] === 0xFF && (decryptedUint8Array[1] & 0xF0) === 0xF0) {
+            finalOutputExtension = ".mp3";
+          }
+        }
+
+        let finalOutputNameForDownload = "";
+        // 检查是否成功获取歌手名和标题，否则使用原文件名
+        if (artist === "未知歌手" || title === baseNameWithoutExtension) {
+          finalOutputNameForDownload = baseNameWithoutExtension;
+        } else {
+          // 对于多位作者，使用 "," 分隔，避免被解析为路径
+          const artistForFilename = artist.replace(/\//g, ',');
+          finalOutputNameForDownload = `${artistForFilename} - ${title}${finalOutputExtension}`;
+        }
+
+        convertedFilesData.push({
+          name: finalOutputNameForDownload,
+          data: decryptedUint8Array, // Store the actual Uint8Array for JSZip
+          blobUrl: URL.createObjectURL(new Blob([decryptedUint8Array], { type: (finalOutputExtension === ".flac" ? 'audio/flac' : 'audio/mpeg') })),
+          coverUrl: coverBlobUrl,
+          title: title, // Store actual title
+          artist: artist,
+          album: album,
+          duration: formatTime(duration)
+        });
+
+        // Render to the converted list
+        renderConvertedFileList();
+        updateProgress(100);
+
+      } catch (err) {
+        console.error(`转换文件 ${file.name} 失败:`, err);
+        updateStatus(`转换 ${file.name} 失败: ${err.message || err}`, "error");
+        updateProgress(100);
+      }
+      // Small delay for UI updates
+      await new Promise(resolve => setTimeout(resolve, 50));
+    }
+
+    updateStatus("所有文件转换完成！", "success");
+    document.getElementById('convertBtn').disabled = false;
+    document.getElementById('selectBtn').disabled = false;
+    document.getElementById('uploadArea').style.cursor = 'pointer';
+    document.getElementById('downloadAllBtn').classList.remove('hidden');
+    document.getElementById('downloadAllBtn').disabled = false;
+  }
+
+  function renderConvertedFileList() {
+    const listElement = document.getElementById('convertedFileList');
+    listElement.innerHTML = '';
+
+    convertedFilesData.forEach(fileInfo => {
+
+      const li = document.createElement('li');
+      li.innerHTML = `
+                    <img src="${fileInfo.coverUrl}" alt="封面" class="cover-image">
+                    <div class="file-details">
+                        <strong>${fileInfo.title}</strong>
+                        <span><i class="fas fa-user"></i> ${fileInfo.artist}</span>
+                        <span><i class="fas fa-compact-disc"></i> ${fileInfo.album}</span>
+                        <span><i class="fas fa-clock"></i> ${fileInfo.duration}</span>
+                    </div>
+                    <div class="file-download">
+                        <a href="${fileInfo.blobUrl}" download="${fileInfo.name}" class="download-single-btn">
+                            <i class="fas fa-download"></i> 下载
+                        </a>
+                    </div>
+                `;
+      listElement.appendChild(li);
+    });
+  }
+
+  // --- 一键下载所有文件 ---
+  async function downloadAllFiles() {
+    if (convertedFilesData.length === 0) {
+      updateStatus("没有可下载的文件。", "info");
+      return;
+    }
+    updateStatus("正在打包所有文件...", "info");
+    document.getElementById('downloadAllBtn').disabled = true;
+
+    try {
+      const zip = new JSZip();
+      convertedFilesData.forEach(fileInfo => {
+        zip.file(fileInfo.name, fileInfo.data);
+      });
+
+      const content = await zip.generateAsync({ type: "blob" }, (metadata) => {
+        updateProgress(metadata.percent);
+      });
+
+      const zipFileName = `NCM_Decrypted_Files_${new Date().toLocaleDateString('zh-CN', { year: 'numeric', month: '2-digit', day: '2-digit' }).replace(/\//g, '')}.zip`;
+      const zipBlobUrl = URL.createObjectURL(content);
+      const a = document.createElement('a');
+      a.href = zipBlobUrl;
+      a.download = zipFileName;
+      document.body.appendChild(a);
+      a.click();
+      document.body.removeChild(a);
+      URL.revokeObjectURL(zipBlobUrl);
+
+      updateStatus("所有文件打包并下载完成！", "success");
+    } catch (err) {
+      console.error("打包下载失败:", err);
+      updateStatus(`打包下载失败: ${err.message || err}`, "error");
+    } finally {
+      document.getElementById('downloadAllBtn').disabled = false;
+      updateProgress(0);
+    }
+  }
+
+  // 异步确认
+  function showConfirm(message, title = '提示') {
+    return new Promise((resolve) => {
+      const modal = document.getElementById('confirmModal');
+      const modalDialog = modal.querySelector('.modal-dialog');
+      const okBtn = document.getElementById('confirmOk');
+      const cancelBtn = document.getElementById('confirmCancel');
+      const closeBtn = modal.querySelector('.modal-close');
+
+      // 设置内容
+      modal.querySelector('.modal-body p').textContent = message;
+      modal.querySelector('.modal-header h3').textContent = title;
+
+      // 显示模态框（带动画）
+      modal.classList.add('show');
+      modal.classList.remove('hidden');
+
+      const handleResponse = (result) => {
+        modal.classList.remove('show');
+        setTimeout(() => {
+          modal.classList.add('hidden');
+        }, 300); // 等待动画结束
+        resolve(result);
+
+        // 清理事件监听
+        okBtn.removeEventListener('click', okHandler);
+        cancelBtn.removeEventListener('click', cancelHandler);
+        closeBtn.removeEventListener('click', cancelHandler);
+      };
+
+      const okHandler = () => handleResponse(true);
+      const cancelHandler = () => handleResponse(false);
+
+      okBtn.addEventListener('click', okHandler);
+      cancelBtn.addEventListener('click', cancelHandler);
+      closeBtn.addEventListener('click', cancelHandler);
+    });
+  }
+
+  // --- 初始化页面和事件监听器 ---
+  document.addEventListener('DOMContentLoaded', () => {
+    // 应用说明折叠功能
+    const appInfoHeader = document.querySelector('.app-info-header');
+    const appInfoContainer = document.querySelector('.app-info-container');
+    appInfoHeader.addEventListener('click', () => {
+      appInfoContainer.classList.toggle('collapsed');
+    });
+
+    const selectBtn = document.getElementById('selectBtn');
+    const fileInput = document.getElementById('fileInput');
+    const uploadArea = document.getElementById('uploadArea');
+    const convertBtn = document.getElementById('convertBtn');
+    const downloadAllBtn = document.getElementById('downloadAllBtn');
+
+    // 继续添加按钮
+    document.getElementById('addMoreBtn').addEventListener('click', () => {
+      document.getElementById('fileInput').click();
+    });
+
+    // 清空列表按钮
+    document.getElementById('clearListBtn').addEventListener('click', async () => {
+      const shouldClear = await showConfirm('确定要清空文件列表吗？');
+      if (shouldClear && pendingFiles.length > 0) {
+        pendingFiles.length = 0;
+        renderPendingFileList();
+      }
+    });
+
+    selectBtn.addEventListener('click', () => {
+      fileInput.click();
+    });
+
+    fileInput.addEventListener('change', (e) => {
+      Array.from(e.target.files).forEach(file => {
+        if (file.name.endsWith('.ncm') && !pendingFiles.some(f => f.name === file.name && f.size === file.size)) {
+          pendingFiles.push(file);
+        } else if (!file.name.endsWith('.ncm')) {
+          updateStatus(`文件 ${file.name} 不是 .ncm 格式，已忽略。`, "error");
+        }
+      });
+      fileInput.value = '';
+      renderPendingFileList();
+    });
+
+    uploadArea.addEventListener('dragover', (e) => {
+      e.preventDefault();
+      uploadArea.classList.add('active');
+    });
+
+    uploadArea.addEventListener('dragleave', () => {
+      uploadArea.classList.remove('active');
+    });
+
+    uploadArea.addEventListener('drop', (e) => {
+      e.preventDefault();
+      uploadArea.classList.remove('active');
+
+      Array.from(e.dataTransfer.files).forEach(file => {
+        if (file.name.endsWith('.ncm') && !pendingFiles.some(f => f.name === file.name && f.size === file.size)) {
+          pendingFiles.push(file);
+        } else if (!file.name.endsWith('.ncm')) {
+          updateStatus(`文件 ${file.name} 不是 .ncm 格式，已忽略。`, "error");
+        }
+      });
+      renderPendingFileList();
+    });
+
+    convertBtn.addEventListener('click', processAllFiles);
+    downloadAllBtn.addEventListener('click', downloadAllFiles);
+
+    updateStatus("正在加载解密模块...", "info");
+    import('./wasm/ncmdump.js')
+            .then(({ default: createModule }) => {
+              return createModule({
+                locateFile: (path) => {
+                  if (path.endsWith('.wasm')) {
+                    return './wasm/ncmdump.wasm';
+                  }
+                  return path;
+                },
+                onRuntimeInitialized: () => {
+                  console.log("WASM runtime initialized.");
+                  updateStatus("解密模块运行时已准备", "info");
+                }
+              });
+            })
+            .then(moduleInstance => {
+              wasmModule = moduleInstance;
+              updateStatus("解密模块加载完成", "success");
+              renderPendingFileList();
+            })
+            .catch(err => {
+              console.error('WASM 模块加载失败:', err);
+              updateStatus(`解密模块加载失败: ${err.message}`, "error");
+            });
+  });
+</script>
+
+<!-- 确认弹窗 -->
+<div id="confirmModal" class="modal hidden">
+  <div class="modal-dialog">
+    <div class="modal-header">
+      <h3>提示</h3>
+      <button class="modal-close">&times;</button>
+    </div>
+    <div class="modal-body">
+      <p>确定要清空文件列表吗？</p>
+    </div>
+    <div class="modal-footer">
+      <button class="btn btn-secondary" id="confirmCancel">取消</button>
+      <button class="btn btn-primary" id="confirmOk">确定</button>
+    </div>
+  </div>
+</div>
+
+</body>
+</html>
