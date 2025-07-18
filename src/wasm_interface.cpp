@@ -1,19 +1,17 @@
 #include <emscripten/bind.h>
 #include <emscripten/val.h>
 #include <vector>
-#include <cstdio>      // For fopen, fwrite, fread, fclose, fseek, ftell, rewind
-#include <stdexcept>   // For std::runtime_error
-#include <string>      // For std::string
-#include <algorithm>   // For std::transform
-#include <iostream>    // For std::cerr / debugging
-#include <dirent.h>    // For directory listing (opendir, readdir, closedir)
-#include <sys/stat.h>  // For stat
-
-#include "ncmcrypt.h"  // 假设这个头文件定义了 NeteaseCrypt 类
+#include <cstdio>
+#include <stdexcept>
+#include <string>
+#include <algorithm>
+#include <iostream>
+#include <dirent.h>
+#include <sys/stat.h>
+#include "ncmcrypt.h"
 
 using namespace emscripten;
 
-// Auxiliary function: convert string to lowercase (still useful for other string ops if needed)
 std::string toLower(std::string s) {
     std::transform(s.begin(), s.end(), s.begin(),
                    [](unsigned char c){ return std::tolower(c); });
@@ -27,7 +25,7 @@ val decryptNCM(const val &inputData, const std::string &outputBaseNameFromJS) {
     std::vector<uint8_t> data = vecFromJSArray<uint8_t>(inputData);
 
     const std::string inputPath = "/work/input.ncm";
-    const std::string workDir = "/work/"; // 工作目录
+    const std::string workDir = "/work/";
 
     FILE* inFile = fopen(inputPath.c_str(), "wb");
     if (!inFile) {
@@ -42,13 +40,10 @@ val decryptNCM(const val &inputData, const std::string &outputBaseNameFromJS) {
     std::string actualOutputFilePath;
 
     try {
-        // Assume NeteaseCrypt's constructor takes std::string or const char* based on previous fixes.
-        // If it still gives constructor error, provide the NeteaseCrypt class definition.
         NeteaseCrypt crypt(inputPath);
         crypt.Dump(workDir);           // 解密并输出到 /work 目录
         crypt.FixMetadata();           // 修复元数据
 
-        // --- 核心改进：直接尝试查找 input.mp3 或 input.flac ---
         std::string assumedMp3Path = workDir + "input.mp3";
         std::string assumedFlacPath = workDir + "input.flac";
 
@@ -63,7 +58,6 @@ val decryptNCM(const val &inputData, const std::string &outputBaseNameFromJS) {
         }
 
         if (!outFile) {
-            // 如果仍然找不到，说明 NeteaseCrypt 行为不同，或解密失败
             throw std::runtime_error("Decrypted output file (input.mp3 or input.flac) not found in VFS /work directory after decryption. "
                                      "NeteaseCrypt might have failed to create a valid output, "
                                      "or it named the file differently than 'input.mp3' or 'input.flac'.");
@@ -112,8 +106,5 @@ val decryptNCM(const val &inputData, const std::string &outputBaseNameFromJS) {
 }
 
 EMSCRIPTEN_BINDINGS(ncmdump_module) {
-    // Make sure this matches the constructor in ncmcrypt.h for NeteaseCrypt
-    // If you're still getting constructor errors for NeteaseCrypt(inputPath),
-    // you MUST show me the NeteaseCrypt class definition from ncmcrypt.h
     function("decryptNCM", &decryptNCM);
 }

@@ -1,7 +1,5 @@
 ﻿cmake_minimum_required(VERSION 3.14)
 
-#project(ncmdump LANGUAGES CXX)
-
 set(CMAKE_CXX_STANDARD 20)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
 project(ncmdump_wasm CXX)
@@ -10,7 +8,6 @@ set(CMAKE_POLICY_DEFAULT_CMP0077 NEW)
 set(WITH_ZLIB OFF)
 set(BUILD_TESTING OFF)
 
-# 添加 taglib 作为子目录。确保 taglib 本身可以使用 Emscripten 编译。
 add_subdirectory(taglib)
 
 # 核心逻辑的通用源文件和头文件
@@ -76,16 +73,4 @@ if(EMSCRIPTEN)
           LIBRARY DESTINATION wasm
           ARCHIVE DESTINATION wasm
   )
-else()
-  # 桌面构建配置 (如果仍然需要)
-  # 这里可以放置你的原始桌面版 add_executable 和 add_library 逻辑。
-  # 例如:
-  # add_executable(ncmdump_exec
-  #   ${COMMON_HEADERS}
-  #   ${COMMON_SOURCES}
-  #   src/main.cpp # 你的原始桌面版 main.cpp
-  # )
-  # target_include_directories(ncmdump_exec PRIVATE src/include)
-  # target_link_libraries(ncmdump_exec tag)
-  # ... 等等桌面构建的配置
 endif()
