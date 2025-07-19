@@ -22,6 +22,8 @@ set(WASM_INTERFACE_SOURCE src/wasm_interface.cpp)
 if(EMSCRIPTEN)
   message(STATUS "Configuring WebAssembly build with Emscripten")
 
+  set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -O3")
+
   # Emscripten 可执行目标
   add_executable(ncmdump_wasm
           ${COMMON_SOURCES}        # 包含核心 C++ 源文件
@@ -60,9 +62,7 @@ if(EMSCRIPTEN)
           -sENVIRONMENT=web
           -sALLOW_MEMORY_GROWTH=1
           -sEXIT_RUNTIME=0
-          -sASSERTIONS=1
-          -sFORCE_FILESYSTEM=1
-          -sEXPORTED_RUNTIME_METHODS=FS # 确保 FS 被导出
+          #-sASSERTIONS=1
           -sNO_DISABLE_EXCEPTION_CATCHING
   )
 

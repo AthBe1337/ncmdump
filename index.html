@@ -738,11 +738,17 @@
       text-align: center;
       padding: 15px;
     }
+
+    .title-icon {
+      height: 1em;
+      vertical-align: middle;
+      margin-right: 12px;
+    }
   </style>
 </head>
 <body>
 <div class="container">
-  <h1><i class="fas fa-lock-open"></i> NCM 解密工具</h1>
+  <h1><img src="https://cloud.athbe.cn/f/egsR/WYY1.png" class="title-icon"> NCM 解密工具</h1>
 
   <!-- 新增的应用信息容器 -->
   <div class="app-info-container">
@@ -753,10 +759,10 @@
       <i class="fas fa-chevron-down toggle-icon"></i>
     </div>
     <div class="app-info-content">
-      <p>这是一个用于解密网易云音乐NCM格式文件的工具，使用WebAssembly技术，转换过程在浏览器中完成，安全可靠。</p>
+      <p><strong>NCM</strong> 是网易云音乐下载得到的加密格式，只能在网易云音乐中播放，本工具可以将 .ncm 文件解密为 .mp3/.flac 文件。</p>
       <p>使用方法：拖放.ncm文件到上方区域，或点击"选择文件"按钮，然后点击"开始转换"按钮。</p>
-      <p>转换完成后，可以单独下载每个文件或打包下载所有文件。</p>
-      <p><strong>提示：</strong> 您可以多次添加文件，所有文件将一起转换。</p>
+      <p>转换完成后，可以单独下载每个文件或打包下载所有文件。可以多次添加文件，所有文件将一起转换。</p>
+      <p><strong>提示：</strong> 所有转换任务都在本地完成，不会上传任何数据到服务器。建议一次不要选太多，跟据自己设备的内存量力而为。</p>
     </div>
   </div>
 
@@ -804,7 +810,7 @@
 </div>
 
 <footer>
-  <p>NCM解密工具 v1.3 &copy; 2023 | 安全便捷的网易云音乐格式转换</p>
+  <p>tools.athbe.cn &copy; 2025 | 绁堢シ的工具集</p>
 </footer>
 
 <script src="https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js"></script>
@@ -1051,27 +1057,26 @@
         }
 
         let finalOutputNameForDownload = "";
-        // 检查是否成功获取歌手名和标题，否则使用原文件名
         if (artist === "未知歌手" || title === baseNameWithoutExtension) {
           finalOutputNameForDownload = baseNameWithoutExtension;
         } else {
-          // 对于多位作者，使用 "," 分隔，避免被解析为路径
           const artistForFilename = artist.replace(/\//g, ',');
-          finalOutputNameForDownload = `${artistForFilename} - ${title}${finalOutputExtension}`;
+          const titleForFilename = title.replace(/\//g, '');
+
+          finalOutputNameForDownload = `${artistForFilename} - ${titleForFilename}${finalOutputExtension}`;
         }
 
         convertedFilesData.push({
           name: finalOutputNameForDownload,
-          data: decryptedUint8Array, // Store the actual Uint8Array for JSZip
+          data: decryptedUint8Array,
           blobUrl: URL.createObjectURL(new Blob([decryptedUint8Array], { type: (finalOutputExtension === ".flac" ? 'audio/flac' : 'audio/mpeg') })),
           coverUrl: coverBlobUrl,
-          title: title, // Store actual title
+          title: title,
           artist: artist,
           album: album,
           duration: formatTime(duration)
         });
 
-        // Render to the converted list
         renderConvertedFileList();
         updateProgress(100);
 
@@ -1140,7 +1145,7 @@
         updateProgress(metadata.percent);
       });
 
-      const zipFileName = `NCM_Decrypted_Files_${new Date().toLocaleDateString('zh-CN', { year: 'numeric', month: '2-digit', day: '2-digit' }).replace(/\//g, '')}.zip`;
+      const zipFileName = `ncm2mp3_${new Date().toLocaleDateString('zh-CN', { year: 'numeric', month: '2-digit', day: '2-digit' }).replace(/\//g, '')}.zip`;
       const zipBlobUrl = URL.createObjectURL(content);
       const a = document.createElement('a');
       a.href = zipBlobUrl;

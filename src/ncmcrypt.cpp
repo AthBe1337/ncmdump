@@ -4,197 +4,179 @@
 #include "cJSON.h"
 #include "color.h"
 
+#include <stdexcept>
+#include <string>
+#include <vector>
+#include <algorithm>
+#include <iostream>
+#include <cstring>
+
 #define TAGLIB_STATIC
-
-
-#include "taglib/toolkit/tfile.h"
+#include "taglib/toolkit/tbytevectorstream.h"
 #include "taglib/mpeg/mpegfile.h"
 #include "taglib/flac/flacfile.h"
 #include "taglib/mpeg/id3v2/frames/attachedpictureframe.h"
 #include "taglib/mpeg/id3v2/id3v2tag.h"
 #include "taglib/tag.h"
-#include <stdexcept>
-#include <string>
-#include <filesystem>
 
+// Disable specific compiler warnings (as in original)
 #pragma warning(disable:4267)
 #pragma warning(disable:4244)
 
+// Define core keys and PNG magic (as in original)
 const unsigned char NeteaseCrypt::sCoreKey[17] = {0x68, 0x7A, 0x48, 0x52, 0x41, 0x6D, 0x73, 0x6F, 0x35, 0x6B, 0x49, 0x6E, 0x62, 0x61, 0x78, 0x57, 0};
 const unsigned char NeteaseCrypt::sModifyKey[17] = {0x23, 0x31, 0x34, 0x6C, 0x6A, 0x6B, 0x5F, 0x21, 0x5C, 0x5D, 0x26, 0x30, 0x55, 0x3C, 0x27, 0x28, 0};
-
 const unsigned char NeteaseCrypt::mPng[8] = {0x89, 0x50, 0x4E, 0x47, 0x0D, 0x0A, 0x1A, 0x0A};
 
-static void aesEcbDecrypt(const unsigned char *key, std::string &src, std::string &dst)
-{
+// === HELPER FUNCTIONS (UNCHANGED, copied for context) ===
+static void aesEcbDecrypt(const unsigned char *key, std::string &src, std::string &dst) {
     int n, i;
-
     unsigned char out[16];
-
     n = src.length() >> 4;
-
     dst.clear();
-
     AES aes(key);
-
-    for (i = 0; i < n - 1; i++)
-    {
+    for (i = 0; i < n - 1; i++) {
         aes.decrypt((unsigned char *)src.c_str() + (i << 4), out);
         dst += std::string((char *)out, 16);
     }
-
     aes.decrypt((unsigned char *)src.c_str() + (i << 4), out);
     char pad = out[15];
-    if (pad > 16)
-    {
-        pad = 0;
-    }
+    if (pad > 16) pad = 0;
     dst += std::string((char *)out, 16 - pad);
 }
 
-static void replace(std::string &str, const std::string &from, const std::string &to)
-{
-    if (from.empty())
-        return;
+static void replace(std::string &str, const std::string &from, const std::string &to) {
+    if (from.empty()) return;
     size_t start_pos = 0;
-    while ((start_pos = str.find(from, start_pos)) != std::string::npos)
-    {
+    while ((start_pos = str.find(from, start_pos)) != std::string::npos) {
         str.replace(start_pos, from.length(), to);
-        start_pos += to.length(); // In case 'to' contains 'from', like replacing 'x' with 'yx'
+        start_pos += to.length();
     }
 }
 
-NeteaseMusicMetadata::~NeteaseMusicMetadata()
-{
-    cJSON_Delete(mRaw);
-}
+// === NeteaseMusicMetadata ===
+NeteaseMusicMetadata::~NeteaseMusicMetadata() { cJSON_Delete(mRaw); }
 
-NeteaseMusicMetadata::NeteaseMusicMetadata(cJSON *raw)
-{
-    if (!raw)
-    {
+NeteaseMusicMetadata::NeteaseMusicMetadata(const std::string& json_str) : mRaw(nullptr) {
+    mRaw = cJSON_Parse(json_str.c_str());
+    if (!mRaw) {
+        std::cerr << BOLDRED << "[Error] " << RESET << "Failed to parse JSON metadata: " << json_str << std::endl;
         return;
     }
 
     cJSON *swap;
-    int artistLen, i;
+    int artistLen;
 
-    mRaw = raw;
+    swap = cJSON_GetObjectItem(mRaw, "musicName");
+    if (swap && cJSON_IsString(swap)) mName = std::string(cJSON_GetStringValue(swap));
 
-    swap = cJSON_GetObjectItem(raw, "musicName");
-    if (swap)
-    {
-        mName = std::string(cJSON_GetStringValue(swap));
-    }
+    swap = cJSON_GetObjectItem(mRaw, "album");
+    if (swap && cJSON_IsString(swap)) mAlbum = std::string(cJSON_GetStringValue(swap));
 
-    swap = cJSON_GetObjectItem(raw, "album");
-    if (swap)
-    {
-        mAlbum = std::string(cJSON_GetStringValue(swap));
-    }
-
-    swap = cJSON_GetObjectItem(raw, "artist");
-    if (swap)
-    {
+    swap = cJSON_GetObjectItem(mRaw, "artist");
+    if (swap && cJSON_IsArray(swap)) {
         artistLen = cJSON_GetArraySize(swap);
-
-        i = 0;
-        for (i = 0; i < artistLen; i++)
-        {
-            auto artist = cJSON_GetArrayItem(swap, i);
-            if (cJSON_GetArraySize(artist) > 0)
-            {
-                if (!mArtist.empty())
-                {
-                    mArtist += "/";
+        for (int i = 0; i < artistLen; i++) {
+            auto artist_array_item = cJSON_GetArrayItem(swap, i);
+            if (artist_array_item && cJSON_IsArray(artist_array_item) && cJSON_GetArraySize(artist_array_item) > 0) {
+                auto artist_name_item = cJSON_GetArrayItem(artist_array_item, 0);
+                if (artist_name_item && cJSON_IsString(artist_name_item)) {
+                    if (!mArtist.empty()) mArtist += "/";
+                    mArtist += std::string(cJSON_GetStringValue(artist_name_item));
                 }
-                mArtist += std::string(cJSON_GetStringValue(cJSON_GetArrayItem(artist, 0)));
             }
         }
     }
 
-    swap = cJSON_GetObjectItem(raw, "bitrate");
-    if (swap)
-    {
-        mBitrate = swap->valueint;
-    }
+    swap = cJSON_GetObjectItem(mRaw, "bitrate");
+    if (swap && cJSON_IsNumber(swap)) mBitrate = swap->valueint;
 
-    swap = cJSON_GetObjectItem(raw, "duration");
-    if (swap)
-    {
-        mDuration = swap->valueint;
-    }
+    swap = cJSON_GetObjectItem(mRaw, "duration");
+    if (swap && cJSON_IsNumber(swap)) mDuration = swap->valueint;
 
-    swap = cJSON_GetObjectItem(raw, "format");
-    if (swap)
-    {
-        mFormat = std::string(cJSON_GetStringValue(swap));
-    }
+    swap = cJSON_GetObjectItem(mRaw, "format");
+    if (swap && cJSON_IsString(swap)) mFormat = std::string(cJSON_GetStringValue(swap));
 }
 
-bool NeteaseCrypt::openFile(std::string const &path)
-{
-    mFile.open(std::filesystem::u8path(path), std::ios::in | std::ios::binary);
-    if (!mFile.is_open())
-    {
-        return false;
+
+// === NeteaseCrypt Methods ===
+
+// Read from memory buffer
+int NeteaseCrypt::readFromBuffer(char *s, std::streamsize n) {
+    if (mReadPos + n > mInputBuffer.size()) {
+        throw std::runtime_error("Attempt to read beyond buffer end or EOF reached.");
     }
-    else
-    {
-        return true;
-    }
+    std::copy(mInputBuffer.begin() + mReadPos, mInputBuffer.begin() + mReadPos + n, s);
+    mReadPos += n;
+    return n;
 }
 
-bool NeteaseCrypt::isNcmFile()
-{
-    unsigned int header;
-
-    mFile.read(reinterpret_cast<char *>(&header), sizeof(header));
-    if (header != (unsigned int)0x4e455443)
-    {
+// Seek in memory buffer
+bool NeteaseCrypt::seekInBuffer(std::streamsize offset, std::ios_base::seekdir way) {
+    size_t newPos;
+    if (way == std::ios_base::cur) {
+        newPos = mReadPos + offset;
+    } else if (way == std::ios_base::beg) {
+        newPos = offset;
+    } else if (way == std::ios_base::end) {
+        newPos = mInputBuffer.size() + offset;
+    } else {
         return false;
     }
 
-    mFile.read(reinterpret_cast<char *>(&header), sizeof(header));
-    if (header != (unsigned int)0x4d414446)
-    {
+    if (newPos > mInputBuffer.size() || (offset < 0 && newPos > mReadPos)) { // Added check for negative offset leading to overflow
+        return false;
+    }
+    mReadPos = newPos;
+    return true;
+}
+
+// Check NCM file magic in memory (aligned with original's `isNcmFile`)
+bool NeteaseCrypt::isNcmFileInMemory() {
+    if (mInputBuffer.size() < 8) return false;
+
+    // Read the 8-byte magic number "NETCMADF"
+    unsigned int header1, header2;
+    // The original reads these as two separate 4-byte integers
+    // Assuming mInputBuffer data is correctly aligned.
+    header1 = *reinterpret_cast<const unsigned int*>(mInputBuffer.data());
+    header2 = *reinterpret_cast<const unsigned int*>(mInputBuffer.data() + 4);
+
+    // The magic numbers are 0x4354454e (CTEN) and 0x4d414446 (FDAM)
+    // The original code checks against 0x4e455443 (NETC) and 0x4d414446 (MADF)
+    // This is because it reads raw bytes into an int on a little-endian system,
+    // so a big-endian 'CTEN' (0x43 0x54 0x45 0x4e) becomes 0x4e455443 in memory.
+    // The same for 'FDAM' (0x46 0x44 0x41 0x4d) becomes 0x4d414446.
+
+    // So, we need to check against the byte-swapped values of "CTEN" and "FDAM"
+    // or simply directly compare the bytes. Let's compare bytes directly for clarity.
+    const char expected_magic[8] = {0x43, 0x54, 0x45, 0x4E, 0x46, 0x44, 0x41, 0x4D}; // "CTENFDAM"
+
+    // Instead of reading into unsigned int and swapping, just compare raw bytes.
+    // This removes endianness issues for the magic number check.
+    if (memcmp(mInputBuffer.data(), expected_magic, 8) != 0) {
         return false;
     }
 
     return true;
 }
 
-int NeteaseCrypt::read(char *s, std::streamsize n)
-{
-    mFile.read(s, n);
-
-    int gcount = mFile.gcount();
-
-    if (gcount <= 0)
-    {
-        throw std::runtime_error("Can't read file");
-    }
-
-    return gcount;
-}
-
-void NeteaseCrypt::buildKeyBox(unsigned char *key, int keyLen)
+// Build Key Box (same as original)
+void NeteaseCrypt::buildKeyBox(const unsigned char *key, int keyLen)
 {
     int i;
-    for (i = 0; i < 256; ++i)
-    {
+    for (i = 0; i < 256; ++i) {
         mKeyBox[i] = (unsigned char)i;
     }
 
     unsigned char swap = 0;
     unsigned char c = 0;
     unsigned char last_byte = 0;
-    unsigned char key_offset = 0;
+    unsigned char key_offset = 0; // This `key_offset` is a local variable, not directly changing the input `key` itself.
 
-    for (i = 0; i < 256; ++i)
-    {
+    for (i = 0; i < 256; ++i) {
         swap = mKeyBox[i];
-        c = ((swap + last_byte + key[key_offset++]) & 0xff);
+        c = ((swap + last_byte + key[key_offset++]) & 0xff); // Only reads from `key`
         if (key_offset >= keyLen)
             key_offset = 0;
         mKeyBox[i] = mKeyBox[c];
@@ -203,222 +185,237 @@ void NeteaseCrypt::buildKeyBox(unsigned char *key, int keyLen)
     }
 }
 
-std::string NeteaseCrypt::mimeType(std::string &data)
-{
-    if (memcmp(data.c_str(), mPng, 8) == 0)
-    {
-        return std::string("image/png");
-    }
-
-    return std::string("image/jpeg");
+// Detect MIME type (same as original)
+std::string NeteaseCrypt::mimeType(std::string &data) {
+    if (memcmp(data.c_str(), mPng, 8) == 0) return "image/png";
+    return "image/jpeg";
 }
 
-void NeteaseCrypt::FixMetadata()
-{
+// Fix Metadata (now working on in-memory data, adapted from original)
+void NeteaseCrypt::FixMetadata() {
+    if (mDecryptedAudioData.empty()) {
+        std::cout << BOLDYELLOW << "[Warn] " << RESET << "No decrypted audio data available for metadata fixing." << std::endl;
+        return;
+    }
 
-    TagLib::File *audioFile;
-    TagLib::Tag *tag;
-    TagLib::ByteVector vector(mImageData.c_str(), mImageData.length());
+    TagLib::ByteVector audioByteVector(
+        reinterpret_cast<const char*>(mDecryptedAudioData.data()),
+        mDecryptedAudioData.size()
+    );
+    TagLib::ByteVectorStream audioStream(audioByteVector);
+    TagLib::File *audioFile = nullptr;
+    TagLib::Tag *tag = nullptr;
+    TagLib::ByteVector imageByteVector(mImageData.c_str(), mImageData.length());
 
-    if (mFormat == NeteaseCrypt::MP3)
-    {
-        audioFile = new TagLib::MPEG::File(mDumpFilepath.c_str());
+    // Original code used TagLib::MPEG::File(mDumpFilepath.c_str()) which implies file I/O
+    // For in-memory, we pass the stream.
+    if (mFormat == NeteaseCrypt::MP3) {
+        audioFile = new TagLib::MPEG::File(&audioStream);
         tag = dynamic_cast<TagLib::MPEG::File *>(audioFile)->ID3v2Tag(true);
 
-        if (!mImageData.empty())
-        {
+        if (!mImageData.empty()) {
             TagLib::ID3v2::AttachedPictureFrame *frame = new TagLib::ID3v2::AttachedPictureFrame;
-
             frame->setMimeType(mimeType(mImageData));
-            frame->setPicture(vector);
-
+            frame->setPicture(imageByteVector);
             dynamic_cast<TagLib::ID3v2::Tag *>(tag)->addFrame(frame);
         }
-    }
-    else if (mFormat == NeteaseCrypt::FLAC)
-    {
-        audioFile = new TagLib::FLAC::File(mDumpFilepath.c_str());
+    } else if (mFormat == NeteaseCrypt::FLAC) {
+        audioFile = new TagLib::FLAC::File(&audioStream);
         tag = audioFile->tag();
 
-        if (!mImageData.empty())
-        {
+        if (!mImageData.empty()) {
             TagLib::FLAC::Picture *cover = new TagLib::FLAC::Picture;
             cover->setMimeType(mimeType(mImageData));
             cover->setType(TagLib::FLAC::Picture::FrontCover);
-            cover->setData(vector);
-
+            cover->setData(imageByteVector);
             dynamic_cast<TagLib::FLAC::File *>(audioFile)->addPicture(cover);
         }
+    } else {
+        std::cout << BOLDYELLOW << "[Warn] " << RESET << "Unsupported audio format for metadata fixing." << std::endl;
+        if (audioFile) delete audioFile;
+        return;
     }
 
-    if (mMetaData != NULL)
-    {
+    if (mMetaData != nullptr && tag != nullptr) {
         tag->setTitle(TagLib::String(mMetaData->name(), TagLib::String::UTF8));
         tag->setArtist(TagLib::String(mMetaData->artist(), TagLib::String::UTF8));
         tag->setAlbum(TagLib::String(mMetaData->album(), TagLib::String::UTF8));
     }
 
-    // tag->setComment(TagLib::String("Create by taurusxin/ncmdump.", TagLib::String::UTF8));
+    audioFile->save(); // Save changes back to the in-memory stream
 
-    audioFile->save();
-    audioFile->~File();
+    // Retrieve modified audio data from the stream
+    TagLib::ByteVector* modifiedAudioByteVectorPtr = audioStream.data();
+    if (modifiedAudioByteVectorPtr != nullptr) {
+        mDecryptedAudioData.assign(
+            reinterpret_cast<const uint8_t*>(modifiedAudioByteVectorPtr->data()),
+            reinterpret_cast<const uint8_t*>(modifiedAudioByteVectorPtr->data() + modifiedAudioByteVectorPtr->size())
+        );
+    } else {
+        std::cout << BOLDYELLOW << "[Warn] " << RESET << "Failed to retrieve modified audio data from TagLib stream." << std::endl;
+    }
+
+    delete audioFile; // Clean up
+    audioFile = nullptr;
 }
 
-void NeteaseCrypt::Dump(std::string const &outputDir = "")
-{
-    if (outputDir.empty())
-    {
-        mDumpFilepath = std::filesystem::u8path(mFilepath);
-    } else {
-        mDumpFilepath = std::filesystem::u8path(outputDir) / std::filesystem::u8path(mFilepath).filename();
+
+// Dump to Memory (same as previous iteration)
+void NeteaseCrypt::DumpToMemory() {
+    mDecryptedAudioData.clear();
+    size_t encrypted_audio_start_pos = mReadPos;
+    size_t encrypted_audio_size = mInputBuffer.size() - encrypted_audio_start_pos;
+
+    if (encrypted_audio_size <= 0) {
+        std::cout << BOLDYELLOW << "[Warn] " << RESET << "No encrypted audio data found to decrypt." << std::endl;
+        return;
     }
 
     std::vector<unsigned char> buffer(0x8000);
+    mDecryptedAudioData.reserve(encrypted_audio_size);
 
-    std::ofstream output;
+    size_t current_encrypted_offset = encrypted_audio_start_pos;
+    size_t bytes_decrypted_total = 0;
 
-    while (!mFile.eof())
-    {
-        int n = read((char *)buffer.data(), buffer.size());
+    while (current_encrypted_offset < mInputBuffer.size()) {
+        size_t bytes_remaining = mInputBuffer.size() - current_encrypted_offset;
+        size_t bytes_to_read = std::min((size_t)buffer.size(), bytes_remaining);
 
-        for (int i = 0; i < n; i++)
-        {
+        if (bytes_to_read == 0) break;
+
+        if (current_encrypted_offset + bytes_to_read > mInputBuffer.size()) {
+            throw std::runtime_error("DumpToMemory internal bounds check failed.");
+        }
+
+        std::copy(mInputBuffer.begin() + current_encrypted_offset,
+                  mInputBuffer.begin() + current_encrypted_offset + bytes_to_read,
+                  buffer.begin());
+
+        for (int i = 0; i < bytes_to_read; i++) {
             int j = (i + 1) & 0xff;
             buffer[i] ^= mKeyBox[(mKeyBox[j] + mKeyBox[(mKeyBox[j] + j) & 0xff]) & 0xff];
         }
 
-        if (!output.is_open())
-        {
-            // identify format
-            // ID3 format mp3
-            if (buffer[0] == 0x49 && buffer[1] == 0x44 && buffer[2] == 0x33)
-            {
-                mDumpFilepath = mDumpFilepath.replace_extension("mp3");
+        if (mDecryptedAudioData.empty()) {
+            if (bytes_to_read >= 3 && buffer[0] == 0x49 && buffer[1] == 0x44 && buffer[2] == 0x33) {
                 mFormat = NeteaseCrypt::MP3;
-            }
-            else
-            {
-                mDumpFilepath = mDumpFilepath.replace_extension("flac");
+            } else if (bytes_to_read >= 4 && buffer[0] == 0x66 && buffer[1] == 0x4C && buffer[2] == 0x61 && buffer[3] == 0x43) {
                 mFormat = NeteaseCrypt::FLAC;
+            } else {
+                mFormat = NeteaseCrypt::MP3;
+                std::cout << BOLDYELLOW << "[Warn] " << RESET << "Could not determine audio format for in-memory data, defaulting to MP3." << std::endl;
             }
-
-            output.open(mDumpFilepath, std::ofstream::out | std::ofstream::binary);
         }
 
-        output.write((char *)buffer.data(), n);
+        mDecryptedAudioData.insert(mDecryptedAudioData.end(), buffer.begin(), buffer.begin() + bytes_to_read);
+        bytes_decrypted_total += bytes_to_read;
+        current_encrypted_offset += bytes_to_read;
     }
-
-    output.flush();
-    output.close();
 }
 
-NeteaseCrypt::~NeteaseCrypt()
-{
-    if (mMetaData != NULL)
-    {
-        delete mMetaData;
+
+// === NeteaseCrypt Constructor (Memory Version) ===
+// THIS IS THE MAIN PART THAT NEEDS TO BE CAREFULLY ALIGNED WITH THE ORIGINAL FILE VERSION
+NeteaseCrypt::NeteaseCrypt(const uint8_t* data, size_t size)
+    : mInputBuffer(data, data + size), mReadPos(0), mMetaData(nullptr) {
+
+    if (!isNcmFileInMemory()) {
+        throw std::invalid_argument("Not netease protected file (invalid magic header).");
+    }
+    if (!seekInBuffer(8, std::ios_base::cur)) {
+        throw std::runtime_error("Failed to seek past NCM magic header.");
     }
 
-    mFile.close();
-}
-
-NeteaseCrypt::NeteaseCrypt(std::string const &path)
-{
-    if (!openFile(path))
-    {
-        throw std::runtime_error("Can't open file");
+    if (!seekInBuffer(2, std::ios_base::cur)) {
+        throw std::invalid_argument("Can't seek past 2-byte unknown field.");
     }
 
-    if (!isNcmFile())
-    {
-        throw std::runtime_error("Not netease protected file");
+    unsigned int n_key_len;
+    readFromBuffer(reinterpret_cast<char *>(&n_key_len), sizeof(n_key_len));
+
+    if (n_key_len <= 0) {
+        throw std::invalid_argument("Broken NCM file: Non-positive key length.");
     }
 
-    if (!mFile.seekg(2, mFile.cur))
-    {
-        throw std::runtime_error("Can't seek file");
+    std::vector<char> keydata_raw_encrypted(n_key_len);
+    readFromBuffer(keydata_raw_encrypted.data(), n_key_len);
+
+    for (size_t i = 0; i < n_key_len; i++) {
+        keydata_raw_encrypted[i] ^= 0x64;
     }
 
-    mFilepath = path;
+    std::string rawKeyDataStr(keydata_raw_encrypted.begin(), keydata_raw_encrypted.end());
+    std::string mKeyDataStr;
+    aesEcbDecrypt(sCoreKey, rawKeyDataStr, mKeyDataStr);
 
-    unsigned int n;
-    read(reinterpret_cast<char *>(&n), sizeof(n));
-
-    if (n <= 0)
-    {
-        throw std::runtime_error("Broken NCM file");
+    if (mKeyDataStr.length() <= 17) {
+        throw std::runtime_error("Decrypted key data is too short for key box derivation.");
     }
+    buildKeyBox(reinterpret_cast<const unsigned char*>(mKeyDataStr.c_str() + 17), mKeyDataStr.length() - 17);
 
-    std::vector<char> keydata(n);
-    read(keydata.data(), n);
+    unsigned int n_meta_len;
+    readFromBuffer(reinterpret_cast<char *>(&n_meta_len), sizeof(n_meta_len));
 
-    for (size_t i = 0; i < n; i++)
-    {
-        keydata[i] ^= 0x64;
-    }
+    if (n_meta_len <= 0) {
+        mMetaData = nullptr;
+    } else {
+        std::vector<char> modifyData(n_meta_len);
+        readFromBuffer(modifyData.data(), n_meta_len);
 
-    std::string rawKeyData(keydata.begin(), keydata.end());
-    std::string mKeyData;
-
-    aesEcbDecrypt(sCoreKey, rawKeyData, mKeyData);
-
-    buildKeyBox((unsigned char *)mKeyData.c_str() + 17, mKeyData.length() - 17);
-
-    read(reinterpret_cast<char *>(&n), sizeof(n));
-
-    if (n <= 0)
-    {
-        std::cout << BOLDYELLOW << "[Warn] " << RESET << "'" << path << "' missing metadata infomation can't fix some infomation!" << std::endl;
-
-        mMetaData = NULL;
-    }
-    else
-    {
-        std::vector<char> modifyData(n);
-        read(modifyData.data(), n);
-
-        for (size_t i = 0; i < n; i++)
-        {
+        for (size_t i = 0; i < n_meta_len; i++) {
             modifyData[i] ^= 0x63;
         }
 
         std::string swapModifyData;
-        std::string modifyOutData;
-        std::string modifyDecryptData;
-
+        if (modifyData.size() < 22) {
+             throw std::runtime_error("Metadata too short to skip prefix.");
+        }
         swapModifyData = std::string(modifyData.begin() + 22, modifyData.end());
 
-        // escape `163 key(Don't modify):`
+        std::string modifyOutData;
         Base64::Decode(swapModifyData, modifyOutData);
 
+        std::string modifyDecryptData;
         aesEcbDecrypt(sModifyKey, modifyOutData, modifyDecryptData);
 
-        // escape `music:`
+        if (modifyDecryptData.length() < 6) {
+            throw std::runtime_error("Decrypted metadata too short to skip 'music:' prefix.");
+        }
         modifyDecryptData = std::string(modifyDecryptData.begin() + 6, modifyDecryptData.end());
 
-        // std::cout << modifyDecryptData << std::endl;
-
-        mMetaData = new NeteaseMusicMetadata(cJSON_Parse(modifyDecryptData.c_str()));
+        mMetaData = new NeteaseMusicMetadata(modifyDecryptData);
     }
 
-    // skip crc32 & image version
-    if (!mFile.seekg(5, mFile.cur))
-    {
-        throw std::runtime_error("can't seek file");
+    if (!seekInBuffer(5, std::ios_base::cur)) {
+        throw std::invalid_argument("Can't seek past CRC32 and image version.");
     }
 
-    uint32_t cover_frame_len{0};
-    read(reinterpret_cast<char *>(&cover_frame_len), 4);
-    read(reinterpret_cast<char *>(&n), sizeof(n));
+    unsigned int cover_frame_len;
+    readFromBuffer(reinterpret_cast<char *>(&cover_frame_len), 4);
 
-    if (n > 0)
-    {
-        mImageData = std::string(n, '\0');
-        read(&mImageData[0], n);
+    unsigned int n_image_len;
+    readFromBuffer(reinterpret_cast<char *>(&n_image_len), sizeof(n_image_len));
+
+    if (n_image_len > 0) {
+        mImageData.resize(n_image_len);
+        readFromBuffer(&mImageData[0], n_image_len);
+    } else {
+        std::cout << BOLDYELLOW << "[Warn] " << RESET << "Missing album image information, can't fix album image!" << std::endl;
+        mImageData.clear();
     }
-    else
-    {
-        std::cout << BOLDYELLOW << "[Warn] " << RESET << "'" << path << "' missing album can't fix album image!" << std::endl;
+
+    long long bytes_to_skip_after_image_data = cover_frame_len - n_image_len;
+    if (bytes_to_skip_after_image_data < 0 || !seekInBuffer(bytes_to_skip_after_image_data, std::ios_base::cur)) {
+        std::cout << BOLDYELLOW << "[Warn] " << RESET << "Problem with final image seek (cover_frame_len - n_image_len). Skipping final seek." << std::endl;
+    } else {
     }
-    mFile.seekg(cover_frame_len - n, mFile.cur);
+
+}
+
+// Destructor (same as previous iteration)
+NeteaseCrypt::~NeteaseCrypt() {
+    if (mMetaData != nullptr) {
+        delete mMetaData;
+        mMetaData = nullptr;
+    }
 }

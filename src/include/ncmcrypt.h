@@ -4,9 +4,11 @@
 #include "cJSON.h"
 
 #include <iostream>
-#include <fstream>
-
-#include <filesystem>
+#include <cstring>
+#ifndef BOLDYELLOW
+#define BOLDYELLOW "\033[1;33m"
+#define RESET "\033[0m"
+#endif
 
 class NeteaseMusicMetadata {
 
@@ -23,6 +25,7 @@ private:
 
 public:
 	NeteaseMusicMetadata(cJSON*);
+	NeteaseMusicMetadata(const std::string& json_str);
 	~NeteaseMusicMetadata();
     const std::string& name() const { return mName; }
     const std::string& album() const { return mAlbum; }
@@ -33,39 +36,38 @@ public:
 
 };
 
+namespace TagLib {
+	class ByteVectorStream;
+}
+
 class NeteaseCrypt {
 
 private:
-	static const unsigned char sCoreKey[17];
-	static const unsigned char sModifyKey[17];
-	static const unsigned char mPng[8];
-	enum NcmFormat { MP3, FLAC };
+    static const unsigned char sCoreKey[17];
+    static const unsigned char sModifyKey[17];
+    static const unsigned char mPng[8];
+    enum NcmFormat { MP3, FLAC };
+	std::vector<uint8_t> mDecryptedAudioData;
 
 private:
-	std::string mFilepath;
-	std::filesystem::path mDumpFilepath;
-	NcmFormat mFormat;
-	std::string mImageData;
-	std::ifstream mFile;
-	unsigned char mKeyBox[256]{};
-	NeteaseMusicMetadata* mMetaData;
+    NcmFormat mFormat;
+    std::string mImageData;
+    std::vector<char> mInputBuffer;
+    size_t mReadPos;
+    unsigned char mKeyBox[256]{};
+    NeteaseMusicMetadata* mMetaData;
 
 private:
-	bool isNcmFile();
-	bool openFile(std::string const&);
-	int read(char *s, std::streamsize n);
-	void buildKeyBox(unsigned char *key, int keyLen);
-	std::string mimeType(std::string& data);
+    bool isNcmFileInMemory();
+	bool seekInBuffer(std::streamsize offset, std::ios_base::seekdir way);
+	void buildKeyBox(const unsigned char *key, int keyLen);
+	std::string mimeType(std::string &data);
+	int readFromBuffer(char *s, std::streamsize n);
 
 public:
-	const std::string& filepath() const { return mFilepath; }
-	const std::filesystem::path dumpFilepath() const { return mDumpFilepath; }
-
-public:
-	NeteaseCrypt(std::string const&);
+    NeteaseCrypt(const uint8_t* data, size_t size);
 	~NeteaseCrypt();
-
-public:
-	void Dump(std::string const&);
-	void FixMetadata();
+	void DumpToMemory();
+    void FixMetadata();
+	const std::vector<uint8_t>& getDecryptedAudioData() const { return mDecryptedAudioData; };
 };
